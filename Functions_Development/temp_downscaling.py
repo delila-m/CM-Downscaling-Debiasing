@@ -23,8 +23,6 @@ test
 control = data_xarray.isel(lon = slice(141, 143), lat = slice(94, 95)).sel(time = "0031-02-15")
 control.lat.values
 
-test_dict = [x1:]
-
 range = [0,1]
 
 for i in range:
@@ -32,7 +30,6 @@ for i in range:
         print(f"lat: {control.lat.values[i]}")
         print(f"lon: {control.lon.values[j]}")
         print(f"value {control.TREFHT_ANN.isel(lat = [i], lon = [j]).values}\n")
-
         
 x = 355
 y = -23.684210526315795        
@@ -59,16 +56,13 @@ def bilinear_interpolation( x, y, cm_xarray ):
     
     # find nearest coords to desired interpolation point 
     q_coords = find_q_coords(x, y, cm_xarray)
-    
-    # initialize list to store interpolated values 
-        
+            
     # grab data values for Q11, Q12, Q21, Q22 using given coordinates 
+    
     
     # calculate R1 & R1
     
-    # calculate P (interpolated point)
-
-    # add to array
+    # calculate and return P (interpolated point)
 
 
 # internal function to find the coordinates of the q points,
