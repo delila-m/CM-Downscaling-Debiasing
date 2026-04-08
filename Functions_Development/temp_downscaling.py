@@ -14,14 +14,12 @@ import matplotlib.pyplot as plt
 # Load the iTRACE
 data_xarray = xr.open_dataset("C:/Users/delil/Desktop/NAU/Research/CM Research 2026/CM-Downscaling-Debiasing/Data/atm-surface/itrace.11Ka-0Ka.atm.TREFHT.nc")
 
-
-
 # brute force test if xarray's interpolation function works the same...
 test = data_xarray.TREFHT_ANN.interp(lon=[355], lat =[-23.684210526315795], method = "linear")
-test
+test[0] #292.22451782
 
-control = data_xarray.isel(lon = slice(141, 143), lat = slice(94, 95)).sel(time = "0031-02-15")
-control.lat.values
+# simplified manual interpolation 
+control = data_xarray.isel(lon = slice(141, 143), lat = slice(93, 95)).sel(time = "0031-02-15")
 
 range = [0,1]
 
