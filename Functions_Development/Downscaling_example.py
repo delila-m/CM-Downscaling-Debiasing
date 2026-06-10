@@ -69,10 +69,15 @@ sim_interpolated_final.isnull().sum()
 # ---------- Defining Datasets for Bias Correction ---------- 
 
     # break into historical and present sets for comparison with observed data
-simp = sim_interpolated_final.isel(time = slice(1099,1100)) # 1945
-simh = sim_interpolated_final.isel(time = slice(0,1099)) # 1935 to 10995 years bp
+simp_interpolated = sim_interpolated_final.isel(time = slice(1099,1100)) # 1945
+simh_interpolated = sim_interpolated_final.isel(time = slice(0,1099)) # 1935 to 10995 years bp
     # There is only one year of overlap between era5 and itrace 
 obsp = obsp.sel(valid_time = "1945")
+
+    # or break into sets without interpolated values 
+simp = sim_mod.isel(time = slice(1099,1100)) # 1945
+simh = sim_mod.isel(time = slice(0,1099)) # 1935 to 10995 years bp
+
 
 # ---------- Bias Correction ----------
 
@@ -92,9 +97,15 @@ def additive_bc(sim_base, sim_ref, obs_ref,
     
     return corrected_data
     
-    
+# with interpolated values    
+additive_interp_test = additive_bc(simh_interpolated, simp_interpolated, obsp, "TREFHT_ANN", "TREFHT_ANN", "t2m")  
+print(additive_interp_test)
+
+additive_interp_test.isnull().sum()
+
+# without interpolated values 
 additive_test = additive_bc(simh, simp, obsp, "TREFHT_ANN", "TREFHT_ANN", "t2m")  
-print(additive_test)
+print(additive_interp_test)
 
 additive_test.isnull().sum()
 
