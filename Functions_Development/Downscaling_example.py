@@ -7,6 +7,7 @@ Created on Tue Jun  9 12:01:39 2026
 
 import numpy as np
 import xarray as xr
+import matplotlib.pyplot as plt
 import random
 
 # ---------- Load Simulated and Observed Data ----------
@@ -14,12 +15,19 @@ import random
     # iTRACE
 sim_xarray = xr.open_dataset("C:/Users/delil/Desktop/NAU/Research/CM Research 2026/CM-Downscaling-Debiasing/Data/atm-surface/itrace.11Ka-0Ka.atm.TREFHT.nc")
 
-    # convert itrace data to the same range as era5 (-180 to 180)
-sim_mod = sim_xarray.assign_coords(lon=(((sim_xarray.lon + 180) % 360) - 180)).sortby('lon')
-
     # ERA5  
 obs_xarray = xr.open_dataset("C:/Users/delil/Desktop/NAU/Research/CM Research 2026/CM-Downscaling-Debiasing/Data/era5_monthly_temp_1950_present_az.nc")
 obsp = xr.open_dataset("C:/Users/delil/Desktop/NAU/Research/CM Research 2026/CM-Downscaling-Debiasing/Data/era5_monthly_temp_1940_1950_az.nc")
+
+    # convert itrace data to the same range as era5 (-180 to 180) & same spatial extent 
+sim_same_latlon = sim_xarray.assign_coords(lon=(((sim_xarray.lon + 180) % 360) - 180)).sortby('lon')
+lat_min, lat_max = obsp.latitude.min().item(), obsp.latitude.max().item()
+lon_min, lon_max = obsp.longitude.min().item(), obsp.longitude.max().item()
+
+    # trim itrace to same spatial extent as era5
+sim_mod = sim_same_latlon.sel(
+    lat=slice(lat_min, lat_max), 
+    lon=slice(lon_min, lon_max)) 
 
 
 # ---------- Sample Interpolation Points ---------
@@ -103,11 +111,104 @@ print(additive_interp_test)
 
 additive_interp_test.isnull().sum()
 
-# without interpolated values 
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------- Visualizing NA values in interpolated set ----------
+
+# selecting variable to plot 
+data_to_plot = sim_interpolated_final['TREFHT_ANN'].isel(time=0) 
+
+# create a mask for NaN values
+is_nan = data_to_plot.isnull()
+
+plt.figure(figsize=(10, 6))
+
+# Plot the original data
+data_to_plot.plot(cmap='viridis', add_colorbar=True, label='Original Data')
+
+# Plot the NaN (interpolated) areas in a contrasting color (e.g., Red)
+is_nan.where(is_nan).plot(add_colorbar=False, cmap='Reds', alpha=0.5, label='NaN / Interpolated')
+
+plt.title('Original Data vs Interpolated NaN Points')
+plt.show()
+
+
+
+# ---------- Bias Correction Before Interpolation ----------
+
+# selecting variable to plot 
+data_to_plot = additive_interp_test['TREFHT_ANN'].isel(time=0) 
+
+# create a mask for NaN values
+is_nan = data_to_plot.isnull()
+
+plt.figure(figsize=(10, 6))
+
+# Plot the original data
+data_to_plot.plot(cmap='viridis', add_colorbar=True, label='Original Data')
+
+# Plot the NaN (interpolated) areas in a contrasting color (e.g., Red)
+is_nan.where(is_nan).plot(add_colorbar=False, cmap='Reds', alpha=0.5, label='NaN / Interpolated')
+
+plt.title('Bias Correction Before Interpolation with NaN Points')
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+# ---------- Interppolation before Bias Correction ----------
+
+# Or bias correct first and interpolate after 
 additive_test = additive_bc(simh, simp, obsp, "TREFHT_ANN", "TREFHT_ANN", "t2m")  
 print(additive_interp_test)
 
 additive_test.isnull().sum()
+
+bc_interpolate = additive_test.interp(
+    lat=test_points.lat, 
+    lon=test_points.lon, 
+    method='linear')
+print(bc_interpolate)
+
+bc_interpolate_expanded = bc_interpolate.reindex(lat=new_lat, lon=new_lon)
+
+    # combine the two datasets     
+bc_interpolate_final = bc_interpolate_expanded.combine_first(sim_interpolated)
+bc_interpolate_final.isnull().sum()
+
+# selecting variable to plot 
+data_to_plot = bc_interpolate_final['TREFHT_ANN'].isel(time=0) 
+
+# create a mask for NaN values
+is_nan = data_to_plot.isnull()
+
+plt.figure(figsize=(10, 6))
+
+# Plot the original data
+data_to_plot.plot(cmap='viridis', add_colorbar=True, label='Original Data')
+
+# Plot the NaN (interpolated) areas in a contrasting color (e.g., Red)
+is_nan.where(is_nan).plot(add_colorbar=False, cmap='Reds', alpha=0.5, label='NaN / Interpolated')
+
+plt.title('Bias Correction Before Interpolation with NaN Points')
+plt.show()
 
 
 
