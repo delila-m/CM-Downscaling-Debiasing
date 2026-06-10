@@ -30,6 +30,7 @@ sim_mod = sim_same_latlon.sel(
     lon=slice(lon_min, lon_max)) 
 
 
+
 # ---------- Sample Interpolation Points ---------
 
 lats = np.array([33.33, 34.33, 35.33])
@@ -51,6 +52,8 @@ test_points = xr.DataArray(
     
 print(test_points)
 
+
+
 # ---------- Interpolation ----------
 
 sim_interpolated = sim_mod.interp(
@@ -58,6 +61,8 @@ sim_interpolated = sim_mod.interp(
     lon=test_points.lon, 
     method='linear')
 print(sim_interpolated)
+
+
 
 # ---------- Combine interpolated vlaues with Original set ----------
 # NOTE this creates na values where the two datasets don't align 
@@ -74,6 +79,7 @@ sim_interpolated_final = sim_mod_expanded.combine_first(sim_interpolated)
 sim_interpolated_final.isnull().sum()
 
 
+
 # ---------- Defining Datasets for Bias Correction ---------- 
 
     # break into historical and present sets for comparison with observed data
@@ -82,9 +88,10 @@ simh_interpolated = sim_interpolated_final.isel(time = slice(0,1099)) # 1935 to 
     # There is only one year of overlap between era5 and itrace 
 obsp = obsp.sel(valid_time = "1945")
 
-    # or break into sets without interpolated values 
+    # or break into sets without interpolated values ?
 simp = sim_mod.isel(time = slice(1099,1100)) # 1945
 simh = sim_mod.isel(time = slice(0,1099)) # 1935 to 10995 years bp
+
 
 
 # ---------- Bias Correction ----------
@@ -112,7 +119,10 @@ print(additive_interp_test)
 additive_interp_test.isnull().sum()
 
 
-
+# without interpolated vales? 
+additive_test = additive_bc(simh, simp, obsp, "TREFHT_ANN", "TREFHT_ANN", "t2m")  
+print(additive_interp_test)
+additive_test.isnull().sum()
 
 
 
@@ -143,8 +153,7 @@ plt.title('Original Data vs Interpolated NaN Points')
 plt.show()
 
 
-
-# ---------- Bias Correction Before Interpolation ----------
+# ---------- Interppolation before Bias Correction Plot ----------
 
 # selecting variable to plot 
 data_to_plot = additive_interp_test['TREFHT_ANN'].isel(time=0) 
@@ -173,12 +182,11 @@ plt.show()
 
 
 
-# ---------- Interppolation before Bias Correction ----------
+# ---------- Bias Correction Before Interpolation Sample and Plot ----------
 
 # Or bias correct first and interpolate after 
 additive_test = additive_bc(simh, simp, obsp, "TREFHT_ANN", "TREFHT_ANN", "t2m")  
 print(additive_interp_test)
-
 additive_test.isnull().sum()
 
 bc_interpolate = additive_test.interp(
