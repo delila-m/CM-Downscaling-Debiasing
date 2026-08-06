@@ -49,10 +49,17 @@ xarray_trace_era5_1d_time = stack_time(xarray_trace_era5)
 xarray_trace_1d_time = stack_time(xarray_trace)
 xarray_era5_1d_time = stack_time(xarray_era5)
 
-xarray_trace_1d_time.isnull().sum() #0
+xarray_era5_1d_time.isnull().sum() #0
 xarray_trace_1d_time.isnull().sum() #0
 xarray_trace_era5_1d_time.precip_era5.isnull().sum() #86904
 
+
+# plt.contourf(xarray_trace_era5.precip_era5.values[0,0,:,:]) 
+
+ # xarray_trace_era5_1d_time.precip_era5 ->  shape=(25, 48, 612)
+ # xarray_trace_era5_1d_time.precip_trace -> shape=(25, 48, 612)
+ # qdm_interpolated.precip ->                shape=(201, 281, 132)
+ # qdm_result.precip ->                      shape=(25, 48, 132)
 # %% ---------- Defining Datasets for Bias Correction ---------- 
 
 
@@ -78,32 +85,44 @@ qdm_result = cm.adjust(
 )
 
 
+qm_result = cm.adjust(
+    method="quantile_mapping",
+    obs=obs,
+    simh=simh,
+    simp=simp,
+    n_quantiles=100,  
+    kind="*",
+)
 
-# try month by month?
- 
-# initialize temp array to hold bias corrected data for each month 
-adjusted_months = []
- 
-# loop through each month 
-for m in range(1, 13):
-    # slice data for month in index
-    obs_m  = xarray_historical.precip_era5.sel(time=xarray_historical.time.dt.month == m)
-    simh_m = xarray_historical.precip_trace.sel(time=xarray_historical.time.dt.month == m)
-    simp_m = xarray_present.precip_trace.sel(time=xarray_present.time.dt.month == m)
- 
-    # Adjust for this specific month
-    res_m = cm.adjust(
-        method="quantile_delta_mapping",
-        obs=obs_m.rename("precip"),
-        simh=simh_m.rename("precip"),
-        simp=simp_m.rename("precip"),
-        n_quantiles=20,  
-        kind="*") # multiplicative delta scaling for percip- if we want to use qm for temperature we could use additive here 
-    adjusted_months.append(res_m)
 
-# combine and sort along time
-qdm_m_result = xr.concat(adjusted_months, dim="time").sortby("time")
- 
+# =============================================================================
+# 
+# # try month by month?
+#  
+# # initialize temp array to hold bias corrected data for each month 
+# adjusted_months = []
+#  
+# # loop through each month 
+# for m in range(1, 13):
+#     # slice data for month in index
+#     obs_m  = xarray_historical.precip_era5.sel(time=xarray_historical.time.dt.month == m)
+#     simh_m = xarray_historical.precip_trace.sel(time=xarray_historical.time.dt.month == m)
+#     simp_m = xarray_present.precip_trace.sel(time=xarray_present.time.dt.month == m)
+#  
+#     # Adjust for this specific month
+#     res_m = cm.adjust(
+#         method="quantile_delta_mapping",
+#         obs=obs_m.rename("precip"),
+#         simh=simh_m.rename("precip"),
+#         simp=simp_m.rename("precip"),
+#         n_quantiles=20,  
+#         kind="*") # multiplicative delta scaling for percip- if we want to use qm for temperature we could use additive here 
+#     adjusted_months.append(res_m)
+# 
+# # combine and sort along time
+# qdm_m_result = xr.concat(adjusted_months, dim="time").sortby("time")
+#  
+# =============================================================================
 
 
 # %% ---------- Interpolation ----------
@@ -115,7 +134,7 @@ qdm_interpolated = qdm_result.interp(
     kwargs={"fill_value": "extrapolate"} # This fills the edges that the model misses
 )
 
-qdm_m_interpolated = qdm_m_result.interp(
+qm_interpolated = qm_result.interp(
     lat=xarray_era5.lat, 
     lon=xarray_era5.lon, 
     method='linear',
@@ -171,8 +190,7 @@ def compare_maps(month_selected):
 for month_selected in np.arange(1,13):
     compare_maps(month_selected)
     
-    
-    
+
 # %% visualize bias correction results 
 
 
@@ -181,7 +199,7 @@ def compare_precip(month_selected,lat_selected,lon_selected):
     #
     # Get precip values at the selected location and month
     era5_interp = xarray_present.precip_era5.interp(lat = lat_selected, lon = lon_selected, method = 'nearest')
-    trace_interp = qdm_interpolated.precip.interp(lat = lat_selected, lon = lon_selected, method = 'nearest')
+    trace_interp = qm_interpolated.precip.interp(lat = lat_selected, lon = lon_selected, method = 'nearest')
     
     values_era5 = era5_interp.sel(time = (era5_interp.time.dt.month == month_selected)).values
     values_trace = trace_interp.sel(time = (trace_interp.time.dt.month == month_selected)).values
@@ -217,7 +235,18 @@ compare_precip(6,lat_selected,lon_selected)
 compare_precip(10,lat_selected,lon_selected)
 
 
+# %%
 
+plt.figure(figsize=(10,5),dpi=216)
+simh.groupby("time.month").mean(...).plot(label="Trace_H (1/1940-12/1979)")
+simp.groupby("time.month").mean(...).plot(label="Trace_P (1/1980-12/1990)")
+obs.groupby("time.month").mean(...).plot(label="ERA5 (1/1940-12/1979")
+qm_result.precip.groupby("time.month").mean(...).plot(label="BC (1/1980-12/1990)$")
+qm_interpolated.precip.groupby("time.month").mean(...).plot(label="BC_Interp (1/1980-12/1990)$")
+plt.title("Historical, modeled, and adjusted temperatures")
+plt.xlim(0,12)
+plt.gca().grid(alpha=.3)
+plt.legend();
 
 
 
