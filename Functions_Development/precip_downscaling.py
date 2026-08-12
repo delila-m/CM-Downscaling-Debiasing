@@ -14,6 +14,7 @@ import random
 import cmethods as cm
 import pandas as pd 
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 
 
 # %% ---------- Load Simulated and Observed Data ----------
@@ -54,7 +55,40 @@ xarray_trace_1d_time.isnull().sum() #0
 xarray_trace_era5_1d_time.precip_era5.isnull().sum() #86904
 
 
-# plt.contourf(xarray_trace_era5.precip_era5.values[0,0,:,:]) 
+
+# Practice plots for era5 and trace 
+plt.contourf(xarray_trace_era5.precip_era5.values[0,0,:,:])
+plt.colorbar().set_label('Monthly Precipitation')
+plt.title('Precipitation Heatmap ERA5')
+
+
+plt.contourf(xarray_trace_era5.precip_trace.values[0,0,:,:]) 
+plt.colorbar().set_label('Monthly Precipitation')
+plt.title('Precipitation Heatmap Trace')
+
+
+# side by side plots 
+
+
+slice_era5 = xarray_trace_era5.precip_era5.isel(year=0, month=0)
+slice_trace = xarray_trace_era5.precip_trace.isel(year=0, month=0)
+
+vmin = float(np.nanmin([slice_era5.values, slice_trace.values]))
+vmax = float(np.nanmax([slice_era5.values, slice_trace.values]))
+ 
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 8))
+
+contour1 = ax1.contourf(slice_era5.lon, slice_era5.lat, slice_era5, levels=10, cmap = "viridis", vmin=vmin, vmax=vmax)
+ax1.set_title("Precipitation heatmap for ERA5")
+
+contour2 = ax2.contourf(slice_trace.lon, slice_trace.lat, slice_trace, levels=10, cmap = "viridis", vmin=vmin, vmax=vmax)
+ax2.set_title("Precipitation heatmap for Trace")
+
+fig.colorbar(contour2, ax=[ax1, ax2], orientation="vertical", label="Precipitation")
+
+plt.show()
+
 
  # xarray_trace_era5_1d_time.precip_era5 ->  shape=(25, 48, 612)
  # xarray_trace_era5_1d_time.precip_trace -> shape=(25, 48, 612)
@@ -125,27 +159,62 @@ qm_result = cm.adjust(
 # =============================================================================
 
 
-# %% ---------- Interpolation ----------
+# %% ---------- Interpolation with built in fucntion ----------
 
 qdm_interpolated = qdm_result.interp(
+    lat=xarray_trace_1d_time.lat, 
+    lon=xarray_trace_1d_time.lon, 
+    method='linear',
+    kwargs={"fill_value": "extrapolate"} # This fills the edges that the model misses
+)
+
+
+qdm_interpolated_era5_extent = qm_result.interp(
     lat=xarray_era5.lat, 
     lon=xarray_era5.lon, 
     method='linear',
     kwargs={"fill_value": "extrapolate"} # This fills the edges that the model misses
 )
 
+
 qm_interpolated = qm_result.interp(
-    lat=xarray_era5.lat, 
-    lon=xarray_era5.lon, 
+    lat=xarray_trace_1d_time.lat, 
+    lon=xarray_trace_1d_time.lon, 
     method='linear',
     kwargs={"fill_value": "extrapolate"} # This fills the edges that the model misses
 )
+
+
 
 qdm_interpolated.isnull().sum()
 
     # check the lat/lon extent match 
 print(qdm_interpolated)
 print(xarray_trace_1d_time)
+
+# %% Interpolation with different methods ??
+
+interp_list = ["nearest","linear", "slinear", "cubic", "quintic"]
+
+interpolated_data = []
+
+for method in interp_list:
+       
+   string_name = "qm_interpolated_" + method
+   
+   string_name = qm_result.interp(
+        lat=xarray_era5.lat, 
+        lon=xarray_era5.lon, 
+        method= method,
+        kwargs={"fill_value": None} # This fills the edges that the model misses
+    )
+    
+   compare_interpolation(string_name, xarray_era5, method)
+   
+   interpolated_data.append(string_name)
+   
+   print(f"Interpolated using: {method}")
+
 
 
 # %% Visualize Bias Correction Results in maps 
@@ -235,26 +304,55 @@ compare_precip(6,lat_selected,lon_selected)
 compare_precip(10,lat_selected,lon_selected)
 
 
-# %%
+# %% visualize differences of each dataset with lines
 
 plt.figure(figsize=(10,5),dpi=216)
 simh.groupby("time.month").mean(...).plot(label="Trace_H (1/1940-12/1979)")
 simp.groupby("time.month").mean(...).plot(label="Trace_P (1/1980-12/1990)")
 obs.groupby("time.month").mean(...).plot(label="ERA5 (1/1940-12/1979")
 qm_result.precip.groupby("time.month").mean(...).plot(label="BC (1/1980-12/1990)$")
-qm_interpolated.precip.groupby("time.month").mean(...).plot(label="BC_Interp (1/1980-12/1990)$")
+interpolated_data[0].precip.groupby("time.month").mean(...).plot(label="nearest_interp")
+interpolated_data[1].precip.groupby("time.month").mean(...).plot(label="bilinear_interp")
+interpolated_data[2].precip.groupby("time.month").mean(...).plot(label="slinear_interp")
+interpolated_data[3].precip.groupby("time.month").mean(...).plot(label="cubic_interp")
+interpolated_data[4].precip.groupby("time.month").mean(...).plot(label="quintic_interp")
+
 plt.title("Historical, modeled, and adjusted temperatures")
 plt.xlim(0,12)
 plt.gca().grid(alpha=.3)
 plt.legend();
 
 
+# %% visualise interpolated vs era5 actual data 
 
 
+def compare_interpolation (xarray_interp, xarray_actual, method):
+        
+    slice_interp = xarray_interp.precip.isel(time = 0)
+    slice_actual = xarray_actual.precip.isel(month = 0, year = 0)
+    
+    vmin = min(slice_interp.min().item(), slice_actual.min().item())
+    vmax = max(slice_interp.max().item(), slice_actual.max().item())
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 9), subplot_kw={'projection': ccrs.PlateCarree()})    
+    contour1 = ax1.contourf(slice_interp.lon, slice_interp.lat, slice_interp, levels=10, cmap = "viridis", vmin=vmin, vmax=vmax)
+    title_string = "Precipitation for " + method +" downscaling"
+    ax1.set_title(title_string)
+    ax1.coastlines(color = "black", linewidth = 1)
+    #ax1.add_feature(cfeature.BORDERS, edgecolor = "gray")
+    
+    contour2 = ax2.contourf(slice_actual.lon, slice_actual.lat, slice_actual, levels=10, cmap = "viridis", vmin=vmin, vmax=vmax)
+    ax2.set_title("Precipitation for era5")
+    ax2.coastlines(color = "black", linewidth = 1)
+    #ax2.add_feature(cfeature.BORDERS, edgecolor = "gray")
+    
+    fig.colorbar(contour2, ax=[ax1, ax2], orientation="horizontal", label="Precipitation")
+    
+    plt.show()
 
+compare_interpolation(qdm_interpolated_era5_extent, xarray_era5, "bilinear")
 
-
-
+compare_interpolation(qdm_result, xarray_era5)
 
 
 
